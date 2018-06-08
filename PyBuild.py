@@ -350,7 +350,7 @@ def TestXcodeProjects(iosTesting, macOSTesting, iosDeviceId):
 	else:
 		return 0
 
-def BuildXcodeProjects():
+def BuildXcodeProjects(skipIosBuild, skipIosCodeSigning):
 	errorOccured = False
 	
 	projsToBuild = GetFilesPathByExtension("./Examples_3/","xcodeproj", True)
@@ -372,9 +372,15 @@ def BuildXcodeProjects():
 
 			#assuming every xcodeproj has an iOS equivalent. 
 			#TODO: Search to verify file exists
-			if filename != "Visibility_Buffer":
-				filename = filename +"_iOS" 
-				command = ["xcodebuild","clean","-quiet","-scheme", filename,"-configuration",conf,"build","CODE_SIGN_IDENTITY=\"\"","CODE_SIGNING_REQUIRED=\"NO\"","CODE_SIGN_ENTITLEMENTS=\"\"","CODE_SIGNING_ALLOWED=\"NO\""]
+			if filename != "Visibility_Buffer" and skipIosBuild == False:
+				filename = filename + "_iOS" 
+				command = ["xcodebuild","clean","-quiet","-scheme", filename,"-configuration",conf,"build"]
+				if skipIosCodeSigning:
+					command.extend([
+					"CODE_SIGN_IDENTITY=\"\"",
+					"CODE_SIGNING_REQUIRED=\"NO\"",
+					"CODE_SIGN_ENTITLEMENTS=\"\"",
+					"CODE_SIGNING_ALLOWED=\"NO\""])
 				sucess = ExecuteBuild(command, filename,conf, "iOS")
 				if sucess != 0:
 					errorOccured = True
@@ -623,11 +629,13 @@ def MainLogic():
 	parser.add_argument('--prebuild', action="store_true", help='If enabled, will run PRE_BUILD if assets do not exist.')
 	parser.add_argument('--forceprebuild', action="store_true", help='If enabled, will call PRE_BUILD even if assets exist.')
 	parser.add_argument('--xbox', action="store_true", help='Enable xbox building')
+	parser.add_argument("--skipiosbuild", action="store_true", default=False, help='Disable iOS building')
+	parser.add_argument("--skipioscodesigning", action="store_true", default=False, help='Disable iOS code signing')
 	parser.add_argument('--testing', action="store_true", help='Test the apps on current platform')
 	parser.add_argument('--ios', action="store_true", help='Needs --testing. Enable iOS testing')
+	parser.add_argument("--iosid", type=str, default="-1", help='Use a specific ios device. Id taken from ios-deploy --detect.')
 	parser.add_argument('--macos', action="store_true", help='Needs --testing. Enable macOS testing')
 	parser.add_argument('--defines', action="store_true", help='Enables pre processor defines for automated testing.')
-	parser.add_argument("--iosid", type=str, default="-1", help='Use a specific ios device. Id taken from ios-deploy --detect.')
 
 	#TODO: remove the test in parse_args
 	#arguments = parser.parse_args()
@@ -674,7 +682,7 @@ def MainLogic():
 	else:
 		#Build for Mac OS (Darwin system)
 		if systemOS== "Darwin":
-			returnCode = BuildXcodeProjects()
+			returnCode = BuildXcodeProjects(arguments.skipiosbuild, arguments.skipioscodesigning)
 		elif systemOS == "Windows":
 			returnCode = BuildWindowsProjects(arguments.xbox)
 		elif systemOS.lower() == "linux" or systemOS.lower() == "linux2":
