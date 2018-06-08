@@ -46,6 +46,9 @@
 #if defined(METAL)
 #import <MetalKit/MetalKit.h>
 #endif
+#if defined(OPENGL)
+#include "OpenGL/OpenGL.h"
+#endif
 
 #if defined(VULKAN)
 // Set this define to enable renderdoc layer
@@ -109,12 +112,12 @@ enum {
 };
 #endif
 
-typedef enum RendererApi
-{
+typedef enum RendererApi {
 	RENDERER_API_D3D12 = 0,
 	RENDERER_API_VULKAN,
 	RENDERER_API_METAL,
 	RENDERER_API_XBOX_D3D12,
+	RENDERER_API_OPENGL,
 } RendererApi;
 
 typedef enum LogType {
@@ -687,6 +690,9 @@ typedef struct Buffer {
 	/// Native handle of the underlying resource
 	id<MTLBuffer>						mtlBuffer;
 #endif
+#if defined(OPENGL)
+    GLuint								mGlRes;
+#endif
 	/// A unique id used for hashing buffers during resource binding
 	uint64_t							mBufferId;
 	/// Position of dynamic buffer memory in the mapped resource
@@ -813,6 +819,9 @@ typedef struct Texture {
 	MTLPixelFormat						mtlPixelFormat;
 	bool								mIsCompressed;
 #endif
+#if defined(OPENGL)
+	GLuint								mGlRes;
+#endif
 	/// Texture creation info
 	TextureDesc							mDesc;	//88
 	/// Size of the texture (in bytes)
@@ -862,6 +871,9 @@ typedef struct RenderTargetDesc
 	uint32_t*				pSharedNodeIndices;
 	uint32_t				mSharedNodeIndexCount;
 	uint32_t				mNodeIndex;
+#if defined(OPENGL)
+	bool					mDefaultFramebufferOwned;
+#endif
 } RenderTargetDesc;
 
 typedef struct RenderTarget
@@ -901,6 +913,9 @@ typedef struct SamplerDesc
 typedef struct Sampler {
 	/// A unique id used for hashing samplers during resource binding
 	uint64_t						mSamplerId;
+#if defined(OPENGL)
+	SamplerDesc						mDesc;
+#endif
 #if defined(DIRECT3D12)
 	/// Description for creating the Sampler descriptor for ths sampler
 	D3D12_SAMPLER_DESC				mDxSamplerDesc;
@@ -916,6 +931,9 @@ typedef struct Sampler {
 #if defined(METAL)
 	/// Native handle of the underlying resource
     id<MTLSamplerState>				mtlSamplerState;
+#endif
+#if defined(OPENGL)
+	GLuint							mGlRes;
 #endif
 } Sampler;
 
@@ -990,6 +1008,8 @@ typedef struct DescriptorSetLayout
 #endif
 #if defined(VULKAN)
 	VkDescriptorSetLayout	pVkSetLayout;
+#endif
+#if defined(VULKAN) || defined(OPENGL)
 	/// Total number of descriptors including descriptors in arrays
 	uint32_t				mCumulativeBufferDescriptorCount;
 	uint32_t				mCumulativeImageDescriptorCount;
@@ -1043,7 +1063,11 @@ typedef struct RootSignature
 
 	VkPipelineLayout							pPipelineLayout;
 #endif
-#if defined(METAL)
+#if defined(OPENGL)
+	/// Keep descriptor sets info even if they do not exist in OpenGL
+	DescriptorSetLayout*						pGlDescriptorSetLayouts;
+	/// Static sampler for sampled textures
+	Sampler*									pSampler;
 #endif
 
 	using ThreadLocalDescriptorManager = tinystl::unordered_map<ThreadID, struct DescriptorManager*>;
@@ -1089,6 +1113,9 @@ typedef struct CmdPool {
 #endif
 #if defined(VULKAN)
 	VkCommandPool					pVkCmdPool;
+#endif
+#if defined(OPENGL)
+	struct GlCommandPool*			pGlCmdPool;
 #endif
 } CmdPool;
 
@@ -1143,6 +1170,10 @@ typedef struct Cmd {
 	MTLPrimitiveType						selectedPrimitiveType;
 	bool									mRenderPassActive;
 #endif
+#if defined(OPENGL)
+	struct GlCommandList*					pGlCmdList;
+	GLuint									mGlBoundVao;
+#endif
 } Cmd;
 
 typedef struct QueueDesc
@@ -1166,13 +1197,18 @@ typedef struct Fence {
 	HANDLE					pDxWaitIdleFenceEvent;
 	uint64					mFenceValue;
 #endif
+#if defined(VULKAN) || defined(OPENGL)
+	bool					mSubmitted;
+#endif
 #if defined(VULKAN)
 	VkFence					pVkFence;
-	bool					mSubmitted;
 #endif
 #if defined(METAL)
     dispatch_semaphore_t	pMtlSemaphore;
     bool					mSubmitted;
+#endif
+#if defined(OPENGL)
+	GLsync					mGlSync;
 #endif
 } Fence;
 
@@ -1295,6 +1331,9 @@ typedef struct Shader {
 	id<MTLFunction>			mtlComputeShader;
 	uint32_t				mNumThreadsPerGroup[3];
 #endif
+#if defined(OPENGL)
+    GLuint*                 pGlShaders;
+#endif
 } Shader;
 
 typedef struct BlendStateDesc
@@ -1371,6 +1410,10 @@ typedef struct DepthState
 #endif
 #if defined(METAL)
     id<MTLDepthStencilState>	mtlDepthState;
+#endif
+#if defined(OPENGL)
+	bool						mDepthTest;
+	GLboolean					mGlDepthMask;
 #endif
 } DepthState;
 
@@ -1469,6 +1512,10 @@ typedef struct Pipeline {
 	id<MTLComputePipelineState>		mtlComputePipelineState;
 	MTLCullMode						mCullMode;
 #endif
+#if defined(OPENGL)
+	GLuint							mGlProgramRes;
+	GLuint							mGlVaoRes;
+#endif
 } Pipeline;
 
 typedef struct SubresourceDataDesc
@@ -1476,9 +1523,11 @@ typedef struct SubresourceDataDesc
 #if defined(DIRECT3D12) || defined(METAL)
 	uint32_t mRowPitch;
 	uint32_t mSlicePitch;
-	void* pData;
 #endif
-#if defined(VULKAN)
+#if defined(DIRECT3D12) || defined(METAL) || defined(OPENGL)
+    void* pData;
+#endif
+#if defined(VULKAN) || defined(OPENGL)
 	uint32_t mMipLevel;
 	uint32_t mArrayLayer;
 	uint32_t mWidth;
@@ -1548,6 +1597,9 @@ typedef struct SwapChain
     MTKView*				pMTKView;
     id<MTLCommandBuffer>	presentCommandBuffer;
 #endif
+#if defined(OPENGL)
+	GlContextView			pContextView;
+#endif
 } SwapChain;
 
 typedef enum ShaderTarget {
@@ -1577,6 +1629,10 @@ typedef struct RendererDesc {
 #endif
 #if defined(DIRECT3D12)
 	D3D_FEATURE_LEVEL				mDxFeatureLevel;
+#endif
+#if defined(OPENGL)
+	// An OpenGL swapchain is not explicitly created by the user (default framebuffer)
+	SwapChainDesc					mSwapChainDesc;
 #endif
 } RendererDesc;
 
@@ -1677,6 +1733,14 @@ typedef struct Renderer {
 #if defined(METAL)
     id<MTLDevice>						pDevice;
     struct ResourceAllocator*			pResourceAllocator;
+#endif
+#if defined(OPENGL)
+	// Opaque context for enabling context sharing.
+	GlContext							pGlContext;
+	struct GlContextState*				pGlContextState;
+	// In OpenGL every context needs a window, since there is no concept of swapchains 
+	// separated from rendering context / resource management.
+	SwapChain*							pSwapChain;
 #endif
 
 	// Default states used if user does not specify them in pipeline creation

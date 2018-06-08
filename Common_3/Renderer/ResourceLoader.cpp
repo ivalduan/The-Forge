@@ -390,6 +390,41 @@ static void cmd_upload_texture_data(Cmd* pCmd, ResourceLoader* pLoader, Texture*
 		}
 	}
 #endif
+#if defined(OPENGL)
+    if (pCmd->pRenderer->mSettings.mApi == RENDERER_API_OPENGL)
+    {
+        for (uint32_t n = 0; n < img.GetArrayCount(); ++n)
+        {
+            for (uint32_t k = 0; k < nSlices; ++k)
+            {
+                for (uint i = 0; i < img.GetMipMapCount(); ++i)
+                {
+                    uint pitch, slicePitch, dataSize;
+                    if (ImageFormat::IsCompressedFormat(img.getFormat()))
+                    {
+                        dataSize = ImageFormat::GetBytesPerBlock(img.getFormat());
+                        pitch = ((img.GetWidth(i) + 3) >> 2);
+                        slicePitch = ((img.GetHeight(i) + 3) >> 2);
+                    }
+                    else
+                    {
+                        dataSize = ImageFormat::GetBytesPerPixel(img.getFormat());
+                        pitch = img.GetWidth(i);
+                        slicePitch = img.GetHeight(i);
+                    }
+
+                    dest->mMipLevel = i;
+                    dest->mArrayLayer = k;
+                    dest->mWidth = img.GetWidth(i);
+                    dest->mHeight = img.GetHeight(i);
+                    dest->mDepth = img.GetDepth(i);
+                    dest->pData = img.GetPixels(i, n) + k * slicePitch;
+                    ++dest;
+                }
+            }
+        }
+    }
+#endif
 
 	// calculate number of subresources
 	int numSubresources = (int)(dest - texData);
@@ -1027,6 +1062,67 @@ void vk_compileShader(Renderer* pRenderer, const String& fileName, const String&
 		}
 	}
 }
+#elif defined(OPENGL)
+// OpenGL has no builtin functions to compile source to spirv
+// So we call the glslangValidator tool located inside VulkanSDK on user machine to compile the glsl code to spirv
+// This code is not added to OpenGL.cpp since it calls no OpenGL specific functions
+void gl_compileShader(Renderer* pRenderer, const String& fileName, const String& outFile, uint32_t macroCount, ShaderMacro* pMacros, tinystl::vector<char>* pByteCode)
+{
+	if (!FileSystem::DirExists(FileSystem::GetPath(outFile)))
+		FileSystem::CreateDir(FileSystem::GetPath(outFile));
+
+	String commandLine;
+	tinystl::vector<String> args;
+	String configFileName;
+
+	// If there is a config file located in the shader source directory use it to specify the limits
+	if (FileSystem::FileExists(FileSystem::GetPath(fileName) + "/config.conf", FSRoot::FSR_Absolute))
+	{
+		configFileName = FileSystem::GetPath(fileName) + "/config.conf";
+		// Add command to compile from Vulkan GLSL to Spirv
+		commandLine += String::format("\"%s\" -G \"%s\" -o \"%s\"", configFileName.size() ? configFileName.c_str() : "", fileName.c_str(), outFile.c_str());
+	}
+	else
+	{
+		commandLine += String::format("-G \"%s\" -o \"%s\"", fileName.c_str(), outFile.c_str());
+	}
+
+	// Add user defined macros to the command line
+	for (uint32_t i = 0; i < macroCount; ++i)
+	{
+		commandLine += " \"-D" + pMacros[i].definition + "=" + pMacros[i].value + "\"";
+	}
+	args.push_back(commandLine);
+
+	String glslangValidator = getenv("VULKAN_SDK");
+	glslangValidator += "/bin/glslangValidator";
+	if (FileSystem::SystemRun(glslangValidator, args, outFile + "_compile.log") == 0)
+	{
+		File file = {};
+		file.Open(outFile, FileMode::FM_ReadBinary, FSRoot::FSR_Absolute);
+		ASSERT(file.IsOpen());
+		pByteCode->resize(file.GetSize());
+		memcpy(pByteCode->data(), file.ReadText().c_str(), pByteCode->size());
+		file.Close();
+	}
+	else
+	{
+		File errorFile = {};
+		errorFile.Open(outFile + "_compile.log", FM_Read, FSR_Absolute);
+		// If for some reason the error file could not be created just log error msg
+		if (!errorFile.IsOpen())
+		{
+			ErrorMsg("Failed to compile shader %s", fileName);
+		}
+		else
+		{
+			String errorLog = errorFile.ReadText();
+			errorFile.Close();
+			ErrorMsg("Failed to compile shader %s with error\n%s", fileName.c_str(), errorLog.c_str());
+			errorFile.Close();
+		}
+	}
+}
 #elif defined(METAL)
 // On Metal, on the other hand, we can compile from code into a MTLLibrary, but cannot save this
 // object's bytecode to disk. We instead use the xcbuild bash tool to compile the shaders.
@@ -1234,6 +1330,9 @@ bool load_shader_stage_byte_code(Renderer* pRenderer, ShaderStage stage, const c
 	case RENDERER_API_METAL:
 		rendererApi = "OSXMetal";
 		break;
+	case RENDERER_API_OPENGL:
+		rendererApi = "PCGL";
+		break;
 	default:
 		break;
 	}
@@ -1251,6 +1350,12 @@ bool load_shader_stage_byte_code(Renderer* pRenderer, ShaderStage stage, const c
 			vk_compileShader(pRenderer, shaderSource.GetName(), binaryShaderName, macroCount, pMacros, &byteCode);
 #elif defined(METAL)
 			mtl_compileShader(pRenderer, shaderSource.GetName(), binaryShaderName, macroCount, pMacros, &byteCode);
+#endif
+		}
+		else if (pRenderer->mSettings.mApi == RENDERER_API_OPENGL)
+		{
+#if defined(OPENGL)
+			gl_compileShader(pRenderer, shaderSource.GetName(), binaryShaderName, macroCount, pMacros, &byteCode);
 #endif
 		}
 		else

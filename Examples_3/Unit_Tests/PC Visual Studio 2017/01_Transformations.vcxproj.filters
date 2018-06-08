@@ -13,6 +13,9 @@
     <Filter Include="Shaders\PCVulkan">
       <UniqueIdentifier>{73c7697d-0e9d-412c-8028-db7d1dc84b6e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shaders\PCGL">
+      <UniqueIdentifier>{f14ca8ef-97bb-4458-9ac7-2d93fc4457bb}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\01_Transformations\01_Transformations.cpp">
@@ -20,17 +23,17 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\src\01_Transformations\PCVulkan\basic.frag">
-      <Filter>Shaders\PCVulkan</Filter>
+    <CustomBuild Include="..\src\01_Transformations\PCGL\basic.frag">
+      <Filter>Shaders\PCGL</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\src\01_Transformations\PCVulkan\basic.vert">
-      <Filter>Shaders\PCVulkan</Filter>
+    <CustomBuild Include="..\src\01_Transformations\PCGL\basic.vert">
+      <Filter>Shaders\PCGL</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\src\01_Transformations\PCVulkan\skybox.frag">
-      <Filter>Shaders\PCVulkan</Filter>
+    <CustomBuild Include="..\src\01_Transformations\PCGL\skybox.frag">
+      <Filter>Shaders\PCGL</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\src\01_Transformations\PCVulkan\skybox.vert">
-      <Filter>Shaders\PCVulkan</Filter>
+    <CustomBuild Include="..\src\01_Transformations\PCGL\skybox.vert">
+      <Filter>Shaders\PCGL</Filter>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
@@ -45,6 +48,18 @@
     </None>
     <None Include="..\src\01_Transformations\PCDX12\skybox.vert">
       <Filter>Shaders\PCDX12</Filter>
+    </None>
+    <None Include="..\src\01_Transformations\PCVulkan\basic.frag">
+      <Filter>Shaders\PCVulkan</Filter>
+    </None>
+    <None Include="..\src\01_Transformations\PCVulkan\basic.vert">
+      <Filter>Shaders\PCVulkan</Filter>
+    </None>
+    <None Include="..\src\01_Transformations\PCVulkan\skybox.frag">
+      <Filter>Shaders\PCVulkan</Filter>
+    </None>
+    <None Include="..\src\01_Transformations\PCVulkan\skybox.vert">
+      <Filter>Shaders\PCVulkan</Filter>
     </None>
   </ItemGroup>
 </Project>

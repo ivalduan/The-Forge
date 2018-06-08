@@ -173,10 +173,13 @@ SPIRV_INTERFACE  void CALLTYPE ReflectShaderResources(CrossCompiler* pCompiler)
    resource_count += (uint32_t)allResources.uniform_buffers.size();         // const buffers
    resource_count += (uint32_t)allResources.storage_buffers.size();         // buffers
    resource_count += (uint32_t)allResources.separate_images.size();         // textures
-   resource_count += (uint32_t)allResources.storage_images.size();          // uav textures
    resource_count += (uint32_t)allResources.separate_samplers.size();       // samplers
+   resource_count += (uint32_t)allResources.storage_images.size();          // uav textures
    resource_count += (uint32_t)allResources.push_constant_buffers.size();   // push const
    resource_count += (uint32_t)allResources.subpass_inputs.size();
+#if defined(OPENGL)
+   resource_count += (uint32_t)allResources.sampled_images.size();         // textures
+#endif
 
    // these we dont care about right
    // subpass_inputs - we are not going to use this   TODO: warn when found
@@ -253,6 +256,9 @@ SPIRV_INTERFACE  void CALLTYPE ReflectShaderResources(CrossCompiler* pCompiler)
    ReflectBoundResources(compiler, allResources.separate_images, usedResouces, resources, &current_resource, SPIRV_TYPE_IMAGES);
    ReflectBoundResources(compiler, allResources.separate_samplers, usedResouces, resources, &current_resource, SPIRV_TYPE_SAMPLERS);
    ReflectBoundResources(compiler, allResources.subpass_inputs, usedResouces, resources, &current_resource, SPIRV_TYPE_SUBPASS_INPUTS);
+#if defined(OPENGL)
+   ReflectBoundResources(compiler, allResources.sampled_images, usedResouces, resources, &current_resource, SPIRV_TYPE_SAMPLED_IMAGES);
+#endif
 
    // 6. reflect push buffers
    for(size_t i = 0; i < allResources.push_constant_buffers.size(); ++i)

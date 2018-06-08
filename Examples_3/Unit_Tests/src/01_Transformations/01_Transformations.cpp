@@ -76,7 +76,13 @@ struct UniformBlock
 	vec3 mLightColor;
 };
 
+#ifdef OPENGL
+const uint32_t		gImageCount = 2;
+#else
 const uint32_t		gImageCount = 3;
+#endif
+
+const bool			gThreaded = false;
 const int			gSphereResolution = 30; // Increase for higher resolution spheres
 const float			gSphereDiameter = 0.5f;
 const uint			gNumPlanets = 11;       // Sun, Mercury -> Neptune, Pluto, Moon
@@ -101,11 +107,11 @@ Shader*				pSphereShader = NULL;
 Buffer*				pSphereVertexBuffer = NULL;
 Pipeline*			pSpherePipeline = NULL;
 
-Shader*				pSkyBoxDrawShader = NULL;
+Shader*				pSkyBoxShader = NULL;
 Buffer*				pSkyBoxVertexBuffer = NULL;
-Pipeline*			pSkyBoxDrawPipeline = NULL;
+Pipeline*			pSkyBoxPipeline = NULL;
 RootSignature*		pRootSignature = NULL;
-Sampler*			pSamplerSkyBox = NULL;
+Sampler*			pSkyBoxSampler = NULL;
 Texture*			pSkyBoxTextures[6];
 #ifdef TARGET_IOS
 Texture*            pVirtualJoystickTex = NULL;
@@ -153,6 +159,8 @@ const char*			pSkyBoxImageFileNames[] =
 #define RESOURCE_DIR "OSXMetal"
 #elif defined(_DURANGO)
 #define RESOURCE_DIR "PCDX12"
+#elif defined(OPENGL)
+#define RESOURCE_DIR "PCGL"
 #else
 #error PLATFORM NOT SUPPORTED
 #endif
@@ -195,6 +203,13 @@ public:
 	{
 		// window and renderer setup
 		RendererDesc settings = { 0 };
+#ifdef OPENGL
+		settings.mSwapChainDesc.pWindow = pWindow;
+		settings.mSwapChainDesc.mImageCount = gImageCount;
+		settings.mSwapChainDesc.mSampleCount = SAMPLE_COUNT_1;
+		settings.mSwapChainDesc.mColorFormat = getRecommendedSwapchainFormat(true);
+		settings.mSwapChainDesc.mEnableVsync = false;
+#endif
 		initRenderer(GetName(), &settings, &pRenderer);
 
 		QueueDesc queueDesc = {};
@@ -210,8 +225,8 @@ public:
 		}
 		addSemaphore(pRenderer, &pImageAcquiredSemaphore);
 
-		initResourceLoaderInterface(pRenderer, DEFAULT_MEMORY_BUDGET, true);
-		initDebugRendererInterface(pRenderer, FileSystem::FixPath("TitilliumText/TitilliumText-Bold.ttf", FSR_Builtin_Fonts));
+		initResourceLoaderInterface(pRenderer, DEFAULT_MEMORY_BUDGET, gThreaded);
+		//initDebugRendererInterface(pRenderer, FileSystem::FixPath("TitilliumText/TitilliumText-Bold.ttf", FSR_Builtin_Fonts));
 
 		// Loads Skybox Textures
 		for (int i = 0; i < 6; ++i)
@@ -225,41 +240,41 @@ public:
 			textureDesc.mUseMipmaps = true;
 			textureDesc.pFilename = pSkyBoxImageFileNames[i];
 			textureDesc.ppTexture = &pSkyBoxTextures[i];
-			addResource(&textureDesc, true);
+			addResource(&textureDesc, gThreaded);
 		}
-        
+
 #ifdef TARGET_IOS
-        // Add virtual joystick texture.
-        TextureLoadDesc textureDesc = {};
-        textureDesc.mRoot = FSRoot::FSR_Absolute;
-        textureDesc.mUseMipmaps = false;
-        textureDesc.pFilename = "circlepad.png";
-        textureDesc.ppTexture = &pVirtualJoystickTex;
-        addResource(&textureDesc, true);
+		// Add virtual joystick texture.
+		TextureLoadDesc textureDesc = {};
+		textureDesc.mRoot = FSRoot::FSR_Absolute;
+		textureDesc.mUseMipmaps = false;
+		textureDesc.pFilename = "circlepad.png";
+		textureDesc.ppTexture = &pVirtualJoystickTex;
+		addResource(&textureDesc, true);
 #endif
 
-		ShaderLoadDesc skyShader = {};
-		skyShader.mStages[0] = { "skybox.vert", NULL, 0, FSR_SrcShaders };
-		skyShader.mStages[1] = { "skybox.frag", NULL, 0, FSR_SrcShaders };
-		ShaderLoadDesc basicShader = {};
-		basicShader.mStages[0] = { "basic.vert", NULL, 0, FSR_SrcShaders };
-		basicShader.mStages[1] = { "basic.frag", NULL, 0, FSR_SrcShaders };
+		ShaderLoadDesc skyBoxShaderDesc = {};
+		skyBoxShaderDesc.mStages[0] = { "skybox.vert", NULL, 0, FSR_SrcShaders };
+		skyBoxShaderDesc.mStages[1] = { "skybox.frag", NULL, 0, FSR_SrcShaders };
+		ShaderLoadDesc basicShaderDesc = {};
+		basicShaderDesc.mStages[0] = { "basic.vert", NULL, 0, FSR_SrcShaders };
+		basicShaderDesc.mStages[1] = { "basic.frag", NULL, 0, FSR_SrcShaders };
 
-		addShader(pRenderer, &skyShader, &pSkyBoxDrawShader);
-		addShader(pRenderer, &basicShader, &pSphereShader);
+		addShader(pRenderer, &skyBoxShaderDesc, &pSkyBoxShader);
+		addShader(pRenderer, &basicShaderDesc, &pSphereShader);
 
 		SamplerDesc samplerDesc = {
 			FILTER_LINEAR, FILTER_LINEAR, MIPMAP_MODE_NEAREST,
 			ADDRESS_MODE_CLAMP_TO_EDGE, ADDRESS_MODE_CLAMP_TO_EDGE, ADDRESS_MODE_CLAMP_TO_EDGE
 		};
-		addSampler(pRenderer, &samplerDesc, &pSamplerSkyBox);
+		addSampler(pRenderer, &samplerDesc, &pSkyBoxSampler);
 
-		Shader* shaders[] = { pSphereShader, pSkyBoxDrawShader };
+		Shader* shaders[] = { pSphereShader, pSkyBoxShader };
 		const char* pStaticSamplers[] = { "uSampler0" };
 		RootSignatureDesc rootDesc = {};
 		rootDesc.mStaticSamplerCount = 1;
 		rootDesc.ppStaticSamplerNames = pStaticSamplers;
-		rootDesc.ppStaticSamplers = &pSamplerSkyBox;
+		rootDesc.ppStaticSamplers = &pSkyBoxSampler;
 		rootDesc.mShaderCount = 2;
 		rootDesc.ppShaders = shaders;
 		addRootSignature(pRenderer, &rootDesc, &pRootSignature);
@@ -464,10 +479,10 @@ public:
 		gPlanetInfoData[10].mScaleMat = mat4::scale(vec3(1));
 		gPlanetInfoData[10].mColor = vec4(0.3f, 0.3f, 0.4f, 1.0f);
 
-		if (!gAppUI.Init(pRenderer))
-			return false;
-
-		gAppUI.LoadFont(FileSystem::FixPath("TitilliumText/TitilliumText-Bold.ttf", FSR_Builtin_Fonts));
+		//if (!gAppUI.Init(pRenderer))
+		//	return false;
+		//
+		//gAppUI.LoadFont(FileSystem::FixPath("TitilliumText/TitilliumText-Bold.ttf", FSR_Builtin_Fonts));
 
 #if USE_CAMERACONTROLLER
 		CameraMotionParameters cmp{ 160.0f, 600.0f, 200.0f };
@@ -519,9 +534,9 @@ public:
 		destroyCameraController(pCameraController);
 #endif
 
-		removeDebugRendererInterface();
+		//removeDebugRendererInterface();
 
-		gAppUI.Exit();
+		//gAppUI.Exit();
 
 		removeResource(pProjViewUniformBuffer);
 		removeResource(pSkyboxUniformBuffer);
@@ -535,9 +550,9 @@ public:
         removeResource(pVirtualJoystickTex);
 #endif
         
-		removeSampler(pRenderer, pSamplerSkyBox);
+		removeSampler(pRenderer, pSkyBoxSampler);
 		removeShader(pRenderer, pSphereShader);
-		removeShader(pRenderer, pSkyBoxDrawShader);
+		removeShader(pRenderer, pSkyBoxShader);
 		removeRootSignature(pRenderer, pRootSignature);
 
 		removeDepthState(pDepth);
@@ -567,8 +582,8 @@ public:
 		if (!addDepthBuffer())
 			return false;
 
-		if (!gAppUI.Load(pSwapChain->ppSwapchainRenderTargets))
-			return false;
+		//if (!gAppUI.Load(pSwapChain->ppSwapchainRenderTargets))
+		//	return false;
 
 		//layout and pipeline for sphere draw
 		VertexLayout vertexLayout = {};
@@ -610,8 +625,8 @@ public:
 
 		pipelineSettings.pDepthState = NULL;
 		pipelineSettings.pRasterizerState = pSkyboxRast;
-		pipelineSettings.pShaderProgram = pSkyBoxDrawShader;
-		addPipeline(pRenderer, &pipelineSettings, &pSkyBoxDrawPipeline);
+		pipelineSettings.pShaderProgram = pSkyBoxShader;
+		addPipeline(pRenderer, &pipelineSettings, &pSkyBoxPipeline);
 
 		return true;
 	}
@@ -620,9 +635,9 @@ public:
 	{
 		waitForFences(pGraphicsQueue, gImageCount, pRenderCompleteFences, true);
 
-		gAppUI.Unload();
+		//gAppUI.Unload();
 
-		removePipeline(pRenderer, pSkyBoxDrawPipeline);
+		removePipeline(pRenderer, pSkyBoxPipeline);
 		removePipeline(pRenderer, pSpherePipeline);
 
 		removeSwapChain(pRenderer, pSwapChain);
@@ -708,7 +723,7 @@ public:
 		getFenceStatus(pRenderer, pNextFence, &fenceStatus);
 		if (fenceStatus == FENCE_STATUS_INCOMPLETE)
 			waitForFences(pGraphicsQueue, 1, &pNextFence, false);
-			
+
 		RenderTarget* pRenderTarget = pSwapChain->ppSwapchainRenderTargets[gFrameIndex];
 
 		Semaphore* pRenderCompleteSemaphore = pRenderCompleteSemaphores[gFrameIndex];
@@ -736,7 +751,7 @@ public:
 
 		//// draw skybox
 		cmdBeginDebugMarker(cmd, 0, 0, 1, "Draw skybox");
-		cmdBindPipeline(cmd, pSkyBoxDrawPipeline);
+		cmdBindPipeline(cmd, pSkyBoxPipeline);
 
 		DescriptorData params[7] = {};
 		params[0].pName = "uniformBlock";
@@ -758,7 +773,7 @@ public:
 		cmdDraw(cmd, 36, 0);
 		cmdEndDebugMarker(cmd);
 
-		////// draw planets
+		//// draw planets
 		cmdBeginDebugMarker(cmd, 1, 0, 1, "Draw Planets");
 		cmdBindPipeline(cmd, pSpherePipeline);
 		params[0].ppBuffers = &pProjViewUniformBuffer;
@@ -770,7 +785,7 @@ public:
 		cmdBeginDebugMarker(cmd, 0, 1, 0, "Draw UI");
 		static HiresTimer gTimer;
 		gTimer.GetUSec(true);
-        
+
 #ifdef TARGET_IOS
 		// Draw the camera controller's virtual joysticks.
 		float extSide = min(mSettings.mHeight, mSettings.mWidth) * pCameraController->getVirtualJoystickExternalRadius();
@@ -793,8 +808,8 @@ public:
 		drawDebugTexture(cmd, rightJoystickPos.x, rightJoystickPos.y, joystickSize.x, joystickSize.y, pVirtualJoystickTex, 1.0f, 1.0f, 1.0f);
 #endif
 
-		drawDebugText(cmd, 8, 15, String::format("CPU %f ms", gTimer.GetUSecAverage() / 1000.0f), &gFrameTimeDraw);
-		gAppUI.Draw(cmd);
+		//drawDebugText(cmd, 8, 15, String::format("CPU %f ms", gTimer.GetUSecAverage() / 1000.0f), &gFrameTimeDraw);
+		//gAppUI.Draw(cmd);
 		cmdBindRenderTargets(cmd, 0, NULL, NULL, NULL);
 		cmdEndDebugMarker(cmd);
 
@@ -813,6 +828,13 @@ public:
 
 	bool addSwapChain()
 	{
+#ifdef OPENGL
+		if (pRenderer->pSwapChain->mDesc.pWindow == pWindow) {
+			pSwapChain = pRenderer->pSwapChain;
+			return pSwapChain != NULL;
+		}
+#endif
+
 		SwapChainDesc swapChainDesc = {};
 		swapChainDesc.pWindow = pWindow;
 		swapChainDesc.mPresentQueueCount = 1;
