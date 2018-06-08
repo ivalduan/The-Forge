@@ -374,7 +374,7 @@ def BuildXcodeProjects():
 			#TODO: Search to verify file exists
 			if filename != "Visibility_Buffer":
 				filename = filename +"_iOS" 
-				command = ["xcodebuild","clean","-quiet","-scheme", filename,"-configuration",conf,"build","-allowProvisioningDeviceRegistration"]
+				command = ["xcodebuild","clean","-quiet","-scheme", filename,"-configuration",conf,"build","-allowProvisioningDeviceRegistration","CODE_SIGNING_REQUIRED=NO"]
 				sucess = ExecuteBuild(command, filename,conf, "iOS")
 				if sucess != 0:
 					errorOccured = True
