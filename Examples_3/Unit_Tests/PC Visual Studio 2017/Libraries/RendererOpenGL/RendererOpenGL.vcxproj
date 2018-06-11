@@ -148,9 +148,6 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>USE_MEMORY_TRACKING;_DEBUG;_WINDOWS;OPENGL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
-    <Lib>
-      <AdditionalLibraryDirectories>$(SolutionDir)\..\..\..\..\..\Common_3\ThirdParty\OpenSource\GLEW\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseVk|x64'">
     <ClCompile>
@@ -200,6 +197,7 @@
     <ClCompile Include="..\..\..\..\..\Common_3\Renderer\OpenGL\OpenGL.cpp" />
     <ClCompile Include="..\..\..\..\..\Common_3\Renderer\OpenGL\OpenGLShaderReflection.cpp" />
     <ClCompile Include="..\..\..\..\..\Common_3\Renderer\ResourceLoader.cpp" />
+    <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\GLEW\src\glew.c" />
     <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\GLFW\src\context.c" />
     <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\GLFW\src\egl_context.c" />
     <ClCompile Include="..\..\..\..\..\Common_3\ThirdParty\OpenSource\GLFW\src\init.c" />

@@ -33,7 +33,7 @@
 
 #define GLEW_STATIC
 
-#include "../../../Common_3/ThirdParty/OpenSource/GLEW/GL/glew.h"
+#include "../../../Common_3/ThirdParty/OpenSource/glew/GL/glew.h"
 
 #include "../../ThirdParty/OpenSource/TinySTL/vector.h"
 

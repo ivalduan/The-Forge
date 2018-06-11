@@ -518,12 +518,6 @@ static const GLenum gGLTexImageTypeTranslator[] =
 
 #pragma comment(lib, "opengl32.lib")
 
-#ifdef _DEBUG
-#pragma comment(lib, "glew32sd.lib")
-#else
-#pragma comment(lib, "glew32s.lib")
-#endif
-
 #define SAFE_FREE(p_var)			\
 	if (p_var) {					\
 		conf_free(p_var);			\
